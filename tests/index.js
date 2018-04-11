@@ -70,7 +70,7 @@ describe('core/sc processor', function () {
         await connectToQueue(channel);
         await consumeMessagesUntil(channel, async (message, res) => {
           let data = JSON.parse(message.content);
-          if (data.name === log.event) {
+          if (log.event && data.name === log.event) {
             const controlIndexHash = `${log.logIndex}:${log.transactionHash}:${web3.sha3(config.web3.network)}`;
             const mongoDoc = await ctx.smEvents.eventModels[log.event].findOne({controlIndexHash});
             expect(mongoDoc).to.not.be.null;
@@ -112,7 +112,7 @@ describe('core/sc processor', function () {
         await connectToQueue(channel);
         await consumeMessagesUntil(channel, async (message, res) => {
           let data = JSON.parse(message.content);
-          if (data.name === log.event) {
+          if (log.event && data.name === log.event) {
             checkPayload(data.payload, log);
             res();
           }
