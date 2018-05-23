@@ -57,7 +57,9 @@ let init = async () => {
     process.exit(0);
   });
 
-  let provider = new Web3.providers.IpcProvider(config.web3.uri, net);
+  const provider = /^http/.test(providerURI) ?
+     new Web3.providers.HttpProvider(providerURI) :
+     new Web3.providers.IpcProvider(`${/^win/.test(process.platform) ? '\\\\.\\pipe\\' : ''}${providerURI}`, net);
   const web3 = new Web3();
   web3.setProvider(provider);
 
