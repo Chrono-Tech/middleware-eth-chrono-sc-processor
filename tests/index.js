@@ -20,13 +20,17 @@ const expect = require('chai').expect,
   clearQueues = require('./helpers/clearQueues'),
   connectToQueue = require('./helpers/connectToQueue'),
   consumeMessagesUntil = require('./helpers/consumeMessagesUntil'),
+  consumeStompMessages = require('./helpers/consumeStompMessages'),
   loadContracts = require('./helpers/loadContracts'),
   executeAddCBE = require('./helpers/executeAddCBE'),
+  pauseAction = require('./helpers/pauseAction'),
   net = require('net'),
   _ = require('lodash'),
   Web3 = require('web3'),
   web3 = new Web3(),
-  amqp = require('amqplib');
+  amqp = require('amqplib'),
+  WebSocket = require('ws'),
+  Stomp = require('webstomp-client');
 
 let accounts, amqpInstance, ctx;
 
@@ -44,7 +48,7 @@ describe('core/sc processor', function () {
     accounts = await Promise.promisify(web3.eth.getAccounts)();
     await saveAccountForAddress(accounts[0]);
 
-    return await awaitLastBlock(web3);
+    //return await awaitLastBlock(web3);
   });
 
   after(() => {
@@ -56,30 +60,38 @@ describe('core/sc processor', function () {
     await clearQueues(amqpInstance);
   });
 
-  it('execute twoCBE and validate event in mongo and structure', async () => {
+
+  it('execute pause action and validate event in mongo and structure', async () => {
 
     let smartTx, log;
 
     return await Promise.all([
       (async () => {
-        smartTx = await executeAddCBE(accounts[0], accounts[1], ctx.contracts);
+        console.log('AAAAAA');
+        smartTx = await pauseAction(accounts[0], ctx.contracts);
         log = smartTx.logs[0];
+        console.log(smartTx.logs);
       })(),
       (async () => {
         const channel = await amqpInstance.createChannel();
         await connectToQueue(channel);
         await consumeMessagesUntil(channel, async (message, res) => {
           let data = JSON.parse(message.content);
+          console.log(data);
           if (log.event && data.name === log.event) {
-            const controlIndexHash = `${log.logIndex}:${log.transactionHash}:${web3.sha3(config.web3.network)}`;
-            const mongoDoc = await ctx.smEvents.eventModels[log.event].findOne({controlIndexHash});
-            expect(mongoDoc).to.not.be.null;
-            expect(mongoDoc).to.be.an('object');
-            expect(mongoDoc.toObject()).to.contain.all.keys(_.merge(
-              _.keys(log.args), [
-                'network', 'created', 'controlIndexHash', '_id', '__v',
-              ]
-            ));
+            console.log('success1');
+            res();
+          }
+        });
+      })(),
+      (async () => {
+        const ws = new WebSocket('ws://localhost:15674/ws');
+        const client = Stomp.over(ws, {heartbeat: false, debug: false});
+        return await consumeStompMessages(1, client, (message) => {
+          let data = JSON.parse(message.body);
+          console.log(data);
+          if (log.event && data.name === log.event) {
+            console.log('success2');
             res();
           }
         });
@@ -88,38 +100,71 @@ describe('core/sc processor', function () {
 
   });
 
-  it('execute twoCBE and validate event in mongo and structure', async () => {
 
-    const checkPayload = (payload, log) => {
-      expect(payload).to.not.be.null;
-      expect(payload).to.be.an('object');
-      expect(payload).to.contain.all.keys([
-        'network', 'created', 'self'
-      ]);
+  // it('execute twoCBE and validate event in mongo and structure', async () => {
 
-      expect(payload).to.contain.all.keys(_.keys(log.args));
-    };
+  //   let smartTx, log;
 
-    let smartTx, log;
+  //   return await Promise.all([
+  //     (async () => {
+  //       smartTx = await executeAddCBE(accounts[0], accounts[1], ctx.contracts);
+  //       log = smartTx.logs[0];
+  //     })(),
+  //     (async () => {
+  //       const channel = await amqpInstance.createChannel();
+  //       await connectToQueue(channel);
+  //       await consumeMessagesUntil(channel, async (message, res) => {
+  //         let data = JSON.parse(message.content);
+  //         if (log.event && data.name === log.event) {
+  //           const controlIndexHash = `${log.logIndex}:${log.transactionHash}:${web3.sha3(config.web3.network)}`;
+  //           const mongoDoc = await ctx.smEvents.eventModels[log.event].findOne({controlIndexHash});
+  //           expect(mongoDoc).to.not.be.null;
+  //           expect(mongoDoc).to.be.an('object');
+  //           expect(mongoDoc.toObject()).to.contain.all.keys(_.merge(
+  //             _.keys(log.args), [
+  //               'network', 'created', 'controlIndexHash', '_id', '__v',
+  //             ]
+  //           ));
+  //           res();
+  //         }
+  //       });
+  //     })()
+  //   ]);
 
-    await Promise.all([
-      (async () => {
-        smartTx = await executeAddCBE(accounts[0], accounts[1], ctx.contracts);
-        log = smartTx.logs[0];
-      })(),
-      (async () => {
-        const channel = await amqpInstance.createChannel();
-        await connectToQueue(channel);
-        await consumeMessagesUntil(channel, async (message, res) => {
-          let data = JSON.parse(message.content);
-          if (log.event && data.name === log.event) {
-            checkPayload(data.payload, log);
-            res();
-          }
-        });
-      })()
-    ]);
+  // });
 
-  });
+  // it('execute twoCBE and validate event in mongo and structure', async () => {
+
+  //   const checkPayload = (payload, log) => {
+  //     expect(payload).to.not.be.null;
+  //     expect(payload).to.be.an('object');
+  //     expect(payload).to.contain.all.keys([
+  //       'network', 'created', 'self'
+  //     ]);
+
+  //     expect(payload).to.contain.all.keys(_.keys(log.args));
+  //   };
+
+  //   let smartTx, log;
+
+  //   await Promise.all([
+  //     (async () => {
+  //       smartTx = await executeAddCBE(accounts[0], accounts[1], ctx.contracts);
+  //       log = smartTx.logs[0];
+  //     })(),
+  //     (async () => {
+  //       const channel = await amqpInstance.createChannel();
+  //       await connectToQueue(channel);
+  //       await consumeMessagesUntil(channel, async (message, res) => {
+  //         let data = JSON.parse(message.content);
+  //         if (log.event && data.name === log.event) {
+  //           checkPayload(data.payload, log);
+  //           res();
+  //         }
+  //       });
+  //     })()
+  //   ]);
+
+  // });
 
 });
