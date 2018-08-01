@@ -57,19 +57,23 @@ let init = async () => {
     process.exit(0);
   });
 
-  let provider = new Web3.providers.IpcProvider(config.web3.uri, net);
+  const provider = /^http/.test(config.web3.uri) ?
+     new Web3.providers.HttpProvider(config.web3.uri) :
+     new Web3.providers.IpcProvider(`${/^win/.test(process.platform) ? '\\\\.\\pipe\\' : ''}${config.web3.uri}`, net);
   const web3 = new Web3();
   web3.setProvider(provider);
 
-  web3.currentProvider.connection.on('end', () => {
-    log.error('ipc process has finished!');
-    process.exit(0);
-  });
+  if (web3.currentProvider.connection.on) {
+        web3.currentProvider.connection.on('end', () => {
+        log.error('ipc process has finished!');
+        process.exit(0);
+        });
 
-  web3.currentProvider.connection.on('error', () => {
-    log.error('ipc process has finished!');
-    process.exit(0);
-  });
+        web3.currentProvider.connection.on('error', () => {
+        log.error('ipc process has finished!');
+        process.exit(0);
+        });
+  }
 
   if (fs.existsSync(config.smartContracts.path)) {
     contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
