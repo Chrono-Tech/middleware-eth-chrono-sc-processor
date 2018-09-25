@@ -10,7 +10,6 @@ services:
   - rabbitmq
 
 before_install:
-  - export CHECK_SYSTEM=0
   - export SMART_CONTRACTS_NETWORK_ID=86
   - mongo data --eval 'db.dropDatabase();'
   - sudo apt-get update

@@ -85,6 +85,11 @@ describe('plugins/chronoScProcessor', function () {
     ctx.scFactory = require('../factories/sc/smartContractsEventsFactory');
     ctx.web3 = new Web3(provider);
     ctx.accounts = await Promise.promisify(ctx.web3.eth.getAccounts)();
+
+    ctx.checkerPid = spawn('node', ['tests/utils/proxyChecker.js'], {
+      env: process.env, stdio: 'ignore'
+    });
+    await Promise.delay(5000);
   });
 
   after(async () => {
@@ -93,6 +98,7 @@ describe('plugins/chronoScProcessor', function () {
     if (_.has(ctx.web3.currentProvider, 'connection.destroy'))
       ctx.web3.currentProvider.connection.destroy();
     ctx.nodePid.kill();
+    await ctx.checkerPid.kill();
   });
 
   describe('block', () => blockTests(ctx));
